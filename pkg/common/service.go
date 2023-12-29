@@ -46,14 +46,11 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 
 	var cFlag_MongoDB = []byte{0x4d, 0x09, 0x50, 0x00}
 	var cBit_MongoDB []byte
-	
-	if len(buf) <4 {
+
+	if rcvSize < 4 {
 		goto Return
 	}
-	
-	if rcvSize <4{
-		goto Return
-	}
+
 	if bytes.Equal(buf[:3], []byte("220")) {
 		*szBan = printBuf
 		if bytes.Contains(bufUp, []byte("FTP")) || bytes.Contains(bufUp, []byte("FILEZILLA")) || bytes.Contains(bufUp, []byte("SERVICE READY FOR NEW USER")) {
@@ -99,7 +96,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 		goto Return
 	}
 
-	if bytes.Equal(buf[:9], []byte("rblsmtpd:")) {
+	if rcvSize >= 9 && bytes.Equal(buf[:9], []byte("rblsmtpd:")) {
 		// 反垃圾邮件
 		*szBan = printBuf
 		*szSvcName = "smtp"
@@ -117,7 +114,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 		goto Return
 	}
 
-	if bytes.Equal(buf[:12], []byte("200 poppassd")) {
+	if rcvSize >= 12 && bytes.Equal(buf[:12], []byte("200 poppassd")) {
 		*szBan = printBuf
 		*szSvcName = "pop"
 		dwRecognition = POPPASSD
@@ -126,7 +123,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// IMAP4
-	if bytes.Equal(buf[:5], []byte("* OK ")) {
+	if rcvSize >= 5 && bytes.Equal(buf[:5], []byte("* OK ")) {
 		*szBan = printBuf
 		*szSvcName = "imap"
 
@@ -138,7 +135,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	// VNC
 	if bytes.Equal(buf[:4], []byte("\x52\x46\x42\x20")) {
 		*szSvcName = "vnc"
-		if len(buf) > 10 {
+		if rcvSize > 10 {
 			*szBan = fmt.Sprintf("RFB %c.%c", buf[6], buf[10])
 
 		} else {
@@ -159,22 +156,21 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// MYSQL  TODO::  默认使用了小端序，需要考虑大端序的情况
-		if rcvSize > 7 && buf[4] == 0xff && buf[0] == uint8(rcvSize-4) {
-			*szSvcName = "mysql"
-			//var uErr uint16
+	if rcvSize >= 7 && buf[4] == 0xff && buf[0] == uint8(rcvSize-4) {
+		*szSvcName = "mysql"
+		//var uErr uint16
 
-			uErr := binary.LittleEndian.Uint16([]byte(buf[5:7]))
+		uErr := binary.LittleEndian.Uint16([]byte(buf[5:7]))
 
-			if uErr == 1129 {
-				*szBan = "BLOCKED"
-				dwRecognition = MySQL_BLOCKED
-			} else {
-				*szBan = "NOT ALLOWED"
-				dwRecognition = MySQL_NOT_ALLOWED
-			}
+		if uErr == 1129 {
+			*szBan = "BLOCKED"
+			dwRecognition = MySQL_BLOCKED
+		} else {
+			*szBan = "NOT ALLOWED"
+			dwRecognition = MySQL_NOT_ALLOWED
+		}
 
-			goto Return
-
+		goto Return
 
 	}
 
@@ -243,7 +239,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// dtspcd
-	if bytes.Equal(buf[:8], []byte("00000000")) {
+	if rcvSize >= 8 && bytes.Equal(buf[:8], []byte("00000000")) {
 		*szSvcName = "dtspcd"
 		dwRecognition = DTSPCD
 
@@ -335,7 +331,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// WEBLOGIC-t3
-	if rcvSize > 5 && bytes.Equal(buf[:5], []byte("HELO:")) {
+	if rcvSize >= 5 && bytes.Equal(buf[:5], []byte("HELO:")) {
 		*szSvcName = "WebLogic-t3"
 		dwRecognition = WEBLOGIC
 
@@ -648,7 +644,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// vpn-pptp
-	if uint8(rcvSize) == buf[1] && bytes.Equal(buf[4:8], MagicCookie) {
+	if uint8(rcvSize) == buf[1] && rcvSize >= 8 && bytes.Equal(buf[4:8], MagicCookie) {
 		*szSvcName = "vpn-pptp"
 		dwRecognition = VPN_PPTP
 
@@ -661,7 +657,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// RSYNC
-	if bytes.EqualFold(buf[:9], []byte("@RSYNCD: ")) {
+	if rcvSize >= 9 && bytes.EqualFold(buf[:9], []byte("@RSYNCD: ")) {
 		//csbuf := fmt.Sprintf("%s", buf)
 		//csbuf = strings.ReplaceAll(csbuf, "\r", "\\x0d")
 		//csbuf = strings.ReplaceAll(csbuf, "\n", "\\x0a")
@@ -717,7 +713,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	// Mongodb  TODO::
 	//fmt.Println(cBit_MongoDB)
 	cBit_MongoDB, _ = IntToBytes(rcvSize, 4)
-	if bytes.Equal(buf[:4], cBit_MongoDB) && bytes.Equal(buf[8:12], cFlag_MongoDB) {
+	if rcvSize >= 12 && bytes.Equal(buf[:4], cBit_MongoDB) && bytes.Equal(buf[8:12], cFlag_MongoDB) {
 		if bytes.Contains(buf, []byte("host")) && bytes.Contains(buf, []byte("version")) &&
 			bytes.Contains(buf, []byte("uptime")) && bytes.Contains(buf, []byte("ok")) {
 			*szSvcName = "mongodb"
@@ -806,7 +802,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// NETBIOS(445)
-	if buf[0] == 0 && buf[3] == byte(rcvSize-4) && buf[5] == 0x53 && buf[6] == 0x4d && buf[7] == 0x42 {
+	if rcvSize > 7 && buf[0] == 0 && buf[3] == byte(rcvSize-4) && buf[5] == 0x53 && buf[6] == 0x4d && buf[7] == 0x42 {
 		*szSvcName = "microsoft-ds"
 		dwRecognition = MICROSOFT_DS
 
@@ -821,7 +817,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// msrcp(135)
-	if buf[0] == 0x05 && buf[8] == byte(rcvSize) {
+	if rcvSize > 8 && buf[0] == 0x05 && buf[8] == byte(rcvSize) {
 		*szSvcName = "msrcp"
 		dwRecognition = DECRPC
 
@@ -833,7 +829,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 	}
 
 	// netbios-ssn 139
-	if buf[0] == 0x83 && buf[1] == 0x00 && buf[4] == 0x8f {
+	if rcvSize > 4 && buf[0] == 0x83 && buf[1] == 0x00 && buf[4] == 0x8f {
 		*szSvcName = "netbios-ssn"
 		dwRecognition = NETBIOS_SSN
 
@@ -850,7 +846,7 @@ func ComparePackets(rcv []byte, rcvSize int, szBan *string, szSvcName *string) i
 
 	// SVRLOC
 	if bytes.Contains(buf, []byte("service:service-agent://")) ||
-		(buf[0] == 0x02 && buf[1] == 0x0b && buf[13] == 0x02 && buf[14] == 0x65 && buf[15] == 0x6e) {
+		(rcvSize > 15 && buf[0] == 0x02 && buf[1] == 0x0b && buf[13] == 0x02 && buf[14] == 0x65 && buf[15] == 0x6e) {
 		*szSvcName = "svrloc"
 		dwRecognition = SVRLOC
 
